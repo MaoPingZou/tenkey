@@ -1,4 +1,4 @@
-# numtype
+# tenkey
 
 在终端里练习数字键盲打的小程序。主键盘数字行和小键盘都能练，每个键的错误率和反应速度都会记下来，帮你找出最弱的那几个键。
 
@@ -9,7 +9,7 @@
 
 ## 怎么玩
 
-1. 运行 `python3 numtype.py`，按数字键 `1`–`5` 选一个练习模式（新手先选 **1 基础练习**）。
+1. 运行 `python3 tenkey.py`，按数字键 `1`–`5` 选一个练习模式（新手先选 **1 基础练习**）。
 2. 屏幕上会出现几组数字，**照着从左往右敲**。打对的变绿；打错时光标不动，改对后才能继续。
 3. 敲下第一个键开始计时。组之间的空格不用按，程序会自动跳过。
 4. 屏幕下方的虚拟键盘会**高亮下一个键**，并告诉你用哪根手指。尽量不看真实键盘，只看屏幕。
@@ -17,7 +17,7 @@
 6. 练过几轮后，可以试试 **3 弱项强化**：程序会专门多出你容易错、反应慢的键。
 
 ```text
- numtype · 基础练习                                    ESC 放弃
+ tenkey · 基础练习                                    ESC 放弃
 
       48213  90571  33820  61947  20538  77412
 
@@ -40,15 +40,15 @@
 ## 安装与启动
 
 ```bash
-git clone https://github.com/MaoPingZou/numtype.git
-cd numtype
-python3 numtype.py
+git clone https://github.com/MaoPingZou/tenkey.git
+cd tenkey
+python3 tenkey.py
 ```
 
-想在任何目录下用 `numtype` 启动，可以加一个别名：
+想在任何目录下用 `tenkey` 启动，可以加一个别名：
 
 ```bash
-echo "alias numtype='python3 $(pwd)/numtype.py'" >> ~/.zshrc && source ~/.zshrc
+echo "alias tenkey='python3 $(pwd)/tenkey.py'" >> ~/.zshrc && source ~/.zshrc
 ```
 
 ## 练习模式
@@ -87,7 +87,7 @@ echo "alias numtype='python3 $(pwd)/numtype.py'" >> ~/.zshrc && source ~/.zshrc
 ## 命令行参数
 
 ```text
-python3 numtype.py [-m MODE] [-s SIZE] [-n GROUPS] [-t TIME] [--pad]
+python3 tenkey.py [-m MODE] [-s SIZE] [-n GROUPS] [-t TIME] [--pad]
 
   -m, --mode    跳过菜单直接进入：basic / custom / weak / scene / timed / stats
   -s, --size    每组数字个数（默认 5，范围 1-20）
@@ -99,9 +99,9 @@ python3 numtype.py [-m MODE] [-s SIZE] [-n GROUPS] [-t TIME] [--pad]
 示例：
 
 ```bash
-python3 numtype.py -m timed -t 30      # 30 秒限时挑战
-python3 numtype.py -m weak -s 6 -n 20  # 弱项强化，每组 6 位，共 20 组
-python3 numtype.py --pad               # 用小键盘布局提示
+python3 tenkey.py -m timed -t 30      # 30 秒限时挑战
+python3 tenkey.py -m weak -s 6 -n 20  # 弱项强化，每组 6 位，共 20 组
+python3 tenkey.py --pad               # 用小键盘布局提示
 ```
 
 ## 快捷键
@@ -114,10 +114,10 @@ python3 numtype.py --pad               # 用小键盘布局提示
 
 ## 数据存储
 
-成绩保存在 `~/.numtype/stats.json`。用环境变量 `NUMTYPE_HOME` 可以换目录：
+成绩保存在 `~/.tenkey/stats.json`。用环境变量 `TENKEY_HOME` 可以换目录：
 
 ```bash
-NUMTYPE_HOME=~/Dropbox/numtype python3 numtype.py
+TENKEY_HOME=~/Dropbox/tenkey python3 tenkey.py
 ```
 
 删掉这个文件就能清空全部记录。
@@ -129,3 +129,7 @@ NUMTYPE_HOME=~/Dropbox/numtype python3 numtype.py
 
 **颜色显示不对？**
 请使用支持 256 色的终端（`TERM=xterm-256color`）。终端不支持颜色时，程序会改用反色、加粗、下划线来区分状态。
+
+## 许可证
+
+[MIT](LICENSE)

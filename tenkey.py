@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""numtype —— 终端里的数字键打字练习。
+"""tenkey —— 终端里的数字键打字练习。
 
 纯标准库实现（curses），无需安装依赖：
-    python3 numtype.py            # 打开菜单
-    python3 numtype.py -m timed   # 直接开始限时挑战
-    python3 numtype.py --help     # 查看全部参数
-成绩保存在 ~/.numtype/stats.json（可用环境变量 NUMTYPE_HOME 改目录）。
+    python3 tenkey.py            # 打开菜单
+    python3 tenkey.py -m timed   # 直接开始限时挑战
+    python3 tenkey.py --help     # 查看全部参数
+成绩保存在 ~/.tenkey/stats.json（可用环境变量 TENKEY_HOME 改目录）。
 """
 import argparse
 import curses
@@ -18,7 +18,7 @@ import time
 import unicodedata
 from pathlib import Path
 
-DATA_FILE = Path(os.environ.get("NUMTYPE_HOME", Path.home() / ".numtype")) / "stats.json"
+DATA_FILE = Path(os.environ.get("TENKEY_HOME", Path.home() / ".tenkey")) / "stats.json"
 DIGITS = "1234567890"
 SEP = "  "          # 组与组之间的分隔，会被自动跳过，不需要按空格
 VIS_LINES = 4       # 练习区同时显示的行数
@@ -191,7 +191,7 @@ def center(scr, y, s, attr=0):
 def header(scr, title, right=""):
     w = scr.getmaxyx()[1]
     put(scr, 0, 0, " " * (w - 1), C["title"])
-    put(scr, 0, 1, f"numtype · {title}", C["title"])
+    put(scr, 0, 1, f"tenkey · {title}", C["title"])
     if right:
         put(scr, 0, max(0, w - dw(right) - 2), right, C["title"])
 
@@ -633,7 +633,7 @@ def app(scr, args):
 
 
 def main():
-    ap = argparse.ArgumentParser(prog="numtype", description="终端数字键打字练习")
+    ap = argparse.ArgumentParser(prog="tenkey", description="终端数字键打字练习")
     ap.add_argument("-m", "--mode", choices=[m for _, m, _, _ in MODES], help="跳过菜单，直接进入某个模式")
     ap.add_argument("-s", "--size", type=int, default=5, help="每组数字个数（默认 5）")
     ap.add_argument("-n", "--groups", type=int, default=12, help="每轮组数（默认 12）")
