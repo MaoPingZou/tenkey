@@ -45,6 +45,8 @@ MODE_NAME = {m: n for _, m, n, _ in MODES}
 # 小键盘在“应用模式”下会发送 ESC O x 序列，这里翻译回普通字符
 PAD_SEQ = {"p": "0", "q": "1", "r": "2", "s": "3", "t": "4", "u": "5", "v": "6", "w": "7",
            "x": "8", "y": "9", "n": ".", "M": "\n", "k": "+", "m": "-", "j": "*", "o": "/", "X": "="}
+ARROWS = {"A": curses.KEY_UP, "B": curses.KEY_DOWN, "C": curses.KEY_RIGHT, "D": curses.KEY_LEFT,
+          "H": curses.KEY_HOME, "F": curses.KEY_END}
 KEYMAP = {curses.KEY_A1: "7", curses.KEY_A3: "9", curses.KEY_B2: "5", curses.KEY_C1: "1",
           curses.KEY_C3: "3", curses.KEY_ENTER: "\n", curses.KEY_BACKSPACE: "\b"}
 
@@ -289,8 +291,12 @@ def read_key(scr):
         except curses.error:
             return "ESC"      # 单独的 ESC
         try:
-            if nxt == "O":
-                return PAD_SEQ.get(scr.get_wch())
+            if nxt in ("O", "["):
+                c = scr.get_wch()
+                if c in ARROWS:   # 少数终端不按 terminfo 发送方向键，这里兜底识别
+                    return ARROWS[c]
+                if nxt == "O":
+                    return PAD_SEQ.get(c)
             while True:       # 其它未识别的转义序列：读完丢弃
                 scr.get_wch()
         except curses.error:
@@ -553,9 +559,17 @@ def show_stats(scr, ctx):
             scr.refresh()
 
 
+MENU_DOWN = {"j", curses.KEY_DOWN, "\t", "\x0e"}       # j / ↓ / Tab / Ctrl-N
+MENU_UP = {"k", curses.KEY_UP, curses.KEY_BTAB, "\x10"}  # k / ↑ / Shift-Tab / Ctrl-P
+MENU_TOP = {"g", curses.KEY_HOME}
+MENU_BOTTOM = {"G", curses.KEY_END}
+MENU_OK = {"\n", "l", " ", curses.KEY_RIGHT}
+
+
 def menu(scr, ctx):
-    sel = 0
+    """主菜单。支持 vim 式 j/k 浏览、g/G 跳到首尾、l/Enter 确认，也可直接按菜单键。"""
     n_items = len(MODES) + 2  # + 键位提示切换 + 退出
+    sel = ctx.get("menu_sel", 0)
     while True:
         if not too_small(scr):
             scr.erase()
@@ -569,7 +583,7 @@ def menu(scr, ctx):
                        C["dim"])
             x = max(2, (w - 52) // 2)
             rows = [(k, n, d.format(t=ctx["time"])) for k, _, n, d in MODES]
-            rows.append(("K", "键位提示", ("小键盘" if ctx["pad"] else "主键盘数字行") + " · 按 K 切换"))
+            rows.append(("P", "键位提示", ("小键盘" if ctx["pad"] else "主键盘数字行") + " · 按 P 切换"))
             rows.append(("Q", "退出", ""))
             for i, (k, n, d) in enumerate(rows):
                 y = 5 + i * 2
@@ -578,29 +592,39 @@ def menu(scr, ctx):
                 put(scr, y, x + 2, f" {k} ", C["cur"] if on else C["key"])
                 put(scr, y, x + 7, n, C["acc"] if on else 0)
                 put(scr, y, x + 17, d, 0 if on else C["dim"])
-            footer(scr, "↑↓ 选择   Enter 确认   或直接按菜单键")
+            footer(scr, "j/k 或 ↑↓ 移动   g/G 首/尾   l 或 Enter 确认   也可直接按菜单键")
             scr.refresh()
 
         k = read_key(scr)
-        if k in (curses.KEY_UP,):
-            sel = (sel - 1) % n_items
-        elif k in (curses.KEY_DOWN, "\t"):
-            sel = (sel + 1) % n_items
-        elif k == "\n":
-            if sel < len(MODES):
-                return MODES[sel][1]
-            if sel == len(MODES):
-                k = "k"
-            else:
-                return "quit"
-        elif isinstance(k, str) and k in "123456":
-            return MODES[int(k) - 1][1]
-        if k in ("ESC", "q", "Q"):
+        if k is None:
+            continue
+        if k in MENU_DOWN:
+            sel = min(sel + 1, n_items - 1)
+        elif k in MENU_UP:
+            sel = max(sel - 1, 0)
+        elif k in MENU_TOP:
+            sel = 0
+        elif k in MENU_BOTTOM:
+            sel = n_items - 1
+        elif isinstance(k, str) and len(k) == 1 and k in "123456":
+            sel = int(k) - 1
+            k = "\n"
+        elif k in ("p", "P"):
+            sel = len(MODES)
+            k = "\n"
+        elif k in ("ESC", "q", "Q"):
             return "quit"
-        if k in ("k", "K"):
+        if k not in MENU_OK:
+            continue
+        ctx["menu_sel"] = sel      # 回到菜单时光标停在上次的位置
+        if sel < len(MODES):
+            return MODES[sel][1]
+        if sel == len(MODES):      # 切换键位提示布局
             ctx["pad"] = not ctx["pad"]
             ctx["st"].data["pad"] = ctx["pad"]
             ctx["st"].save()
+        else:
+            return "quit"
 
 
 def app(scr, args):
