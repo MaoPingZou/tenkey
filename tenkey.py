@@ -216,7 +216,7 @@ def init_colors():
     C.update(ok=curses.A_BOLD, err=curses.A_REVERSE | curses.A_BOLD, fix=curses.A_UNDERLINE,
              cur=curses.A_REVERSE, dim=curses.A_DIM, key=curses.A_REVERSE, h0=curses.A_REVERSE,
              h1=curses.A_REVERSE | curses.A_UNDERLINE, h2=curses.A_REVERSE | curses.A_BOLD,
-             title=curses.A_REVERSE, acc=curses.A_BOLD)
+             title=curses.A_REVERSE, acc=curses.A_BOLD, zcur=curses.A_BOLD | curses.A_UNDERLINE)
     if not curses.has_colors():
         return
     curses.start_color()
@@ -231,11 +231,12 @@ def init_colors():
             "dim": (gray, bg), "key": (curses.COLOR_BLACK, curses.COLOR_WHITE),
             "h0": (curses.COLOR_BLACK, curses.COLOR_GREEN), "h1": (curses.COLOR_BLACK, curses.COLOR_YELLOW),
             "h2": (curses.COLOR_WHITE, curses.COLOR_RED), "title": (curses.COLOR_BLACK, curses.COLOR_CYAN),
-            "acc": (curses.COLOR_CYAN, bg)}
-    bold = {"ok", "err", "cur", "acc", "h2"}
+            "acc": (curses.COLOR_CYAN, bg), "zcur": (curses.COLOR_CYAN, bg)}
+    bold = {"ok", "err", "cur", "acc", "h2", "zcur"}
     for i, (k, (f, b)) in enumerate(spec.items(), 1):
         curses.init_pair(i, f, b)
         C[k] = curses.color_pair(i) | (curses.A_BOLD if k in bold else 0)
+    C["zcur"] |= curses.A_UNDERLINE
 
 
 def heat_level(miss, total, warn, bad):
@@ -349,49 +350,73 @@ def run_session(scr, ctx, title, items, limit=None):
             if tw != cache_w:
                 cache_w, pmap = tw, layout(items, tw)
             x0 = (w - tw) // 2
+            zen = ctx["zen"]
             scr.erase()
-            header(scr, title, "ESC 放弃")
             cl = pmap[pos][0]
             first = max(0, cl - 1)
             erring = now - flash[0] < 0.35
+            el = now - start if start else 0
+            # 禅模式：只留下文字本身，整体垂直居中；详细模式保留原有布局
+            vis = 3 if zen else VIS_LINES
+            ty = max(1, (h - vis * 2) // 2 - 1) if zen else 3
+            if not zen:
+                header(scr, title, "ESC 放弃 · Tab 禅模式")
             for i, ch in enumerate(text):
                 if ch == " ":
                     continue
                 ln, col = pmap[i]
                 if ln < first:
                     continue
-                if ln >= first + VIS_LINES:
+                if ln >= first + vis:
                     break
                 if i < pos:
-                    a = C["fix"] if i in err_pos else C["ok"]
+                    if zen:
+                        a = C["fix"] | curses.A_DIM if i in err_pos else C["dim"]
+                    else:
+                        a = C["fix"] if i in err_pos else C["ok"]
                 elif i == pos:
-                    a = C["err"] if erring else C["cur"]
+                    a = C["err"] if erring else (C["zcur"] if zen else C["cur"])
                 else:
                     a = 0 if ln == cl else C["dim"]
-                put(scr, 3 + (ln - first) * 2, x0 + col, ch, a)
+                put(scr, ty + (ln - first) * 2, x0 + col, ch, a)
 
-            el = now - start if start else 0
-            cpm = done * 60 / el if el > 1 else 0
-            acc = (strokes - errors) / strokes * 100 if strokes else 100
-            prog = f"剩余 {max(0, limit - el):4.1f} 秒" if limit else f"进度 {done}/{n_total}"
-            center(scr, 4 + VIS_LINES * 2, f"速度 {cpm:4.0f} 字/分    准确率 {acc:5.1f}%    {prog}", C["acc"])
-
-            nxt = text[pos]
-            ky = 6 + VIS_LINES * 2
-            rows = draw_kb(scr, ky, ctx["pad"], hi=nxt)
-            if erring:
-                center(scr, ky + rows + 1, f"按错了：你按的是 {flash[1]!r}，应为 {nxt}", C["err"])
+            if zen:
+                # 一条极淡的进度线：限时模式按时间，其它模式按完成字数
+                frac = min(1.0, el / limit) if limit else done / n_total
+                fill = round(tw * frac)
+                py = ty + vis * 2
+                put(scr, py, x0, "─" * fill, C["dim"])
+                put(scr, py, x0 + fill, "·" * (tw - fill), C["dim"] | curses.A_DIM)
+                if not start:
+                    center(scr, h - 2, "敲下第一个数字开始  ·  Tab 显示提示  ·  Esc 返回", C["dim"])
+                scr.refresh()
             else:
-                center(scr, ky + rows + 1, f"下一个  {nxt}   ·   {finger.get(nxt, '')}", C["dim"])
-            if not start:
-                footer(scr, "开始敲第一个数字即开始计时；分隔空格会自动跳过，按错不会前进")
-            scr.refresh()
+                cpm = done * 60 / el if el > 1 else 0
+                acc = (strokes - errors) / strokes * 100 if strokes else 100
+                prog = f"剩余 {max(0, limit - el):4.1f} 秒" if limit else f"进度 {done}/{n_total}"
+                center(scr, 4 + VIS_LINES * 2, f"速度 {cpm:4.0f} 字/分    准确率 {acc:5.1f}%    {prog}", C["acc"])
+
+                nxt = text[pos]
+                ky = 6 + VIS_LINES * 2
+                rows = draw_kb(scr, ky, ctx["pad"], hi=nxt)
+                if erring:
+                    center(scr, ky + rows + 1, f"按错了：你按的是 {flash[1]!r}，应为 {nxt}", C["err"])
+                else:
+                    center(scr, ky + rows + 1, f"下一个  {nxt}   ·   {finger.get(nxt, '')}", C["dim"])
+                if not start:
+                    footer(scr, "开始敲第一个数字即开始计时；分隔空格会自动跳过，按错不会前进")
+                scr.refresh()
 
         k = read_key(scr)
         if k is None:
             continue
         if k == "ESC":
             return None
+        if k == "\t":           # 切换禅模式 / 详细模式，并记住选择
+            ctx["zen"] = not ctx["zen"]
+            ctx["st"].data["zen"] = ctx["zen"]
+            ctx["st"].save()
+            continue
         if not (isinstance(k, str) and len(k) == 1 and k.isprintable()) or k == " ":
             continue
         now = time.time()
@@ -639,7 +664,8 @@ def app(scr, args):
     init_colors()
     st = Stats()
     ctx = {"st": st, "size": args.size, "groups": args.groups, "time": args.time,
-           "pad": args.pad or bool(st.data.get("pad"))}
+           "pad": args.pad or bool(st.data.get("pad")),
+           "zen": st.data.get("zen", True) if args.zen is None else args.zen}
     mode = args.mode
     while True:
         if mode is None:
@@ -657,12 +683,21 @@ def app(scr, args):
 
 
 def main():
-    ap = argparse.ArgumentParser(prog="tenkey", description="终端数字键打字练习")
-    ap.add_argument("-m", "--mode", choices=[m for _, m, _, _ in MODES], help="跳过菜单，直接进入某个模式")
-    ap.add_argument("-s", "--size", type=int, default=5, help="每组数字个数（默认 5）")
-    ap.add_argument("-n", "--groups", type=int, default=12, help="每轮组数（默认 12）")
-    ap.add_argument("-t", "--time", type=int, default=60, help="限时挑战秒数（默认 60）")
-    ap.add_argument("--pad", action="store_true", help="键位提示使用小键盘布局")
+    ap = argparse.ArgumentParser(
+        prog="tenkey", description="终端数字键打字练习", add_help=False,
+        usage="%(prog)s [-m MODE] [-s N] [-n N] [-t SEC] [--pad] [--zen | --detail]",
+        epilog="练习中按 Tab 切换禅模式 / 详细模式，Esc 放弃本轮。")
+    ap._optionals.title = "参数"
+    ap.add_argument("-h", "--help", action="help", help="显示帮助")
+    ap.add_argument("-m", "--mode", metavar="MODE", choices=[m for _, m, _, _ in MODES],
+                    help="直接进入：" + " / ".join(m for _, m, _, _ in MODES))
+    ap.add_argument("-s", "--size", metavar="N", type=int, default=5, help="每组位数（默认 5）")
+    ap.add_argument("-n", "--groups", metavar="N", type=int, default=12, help="每轮组数（默认 12）")
+    ap.add_argument("-t", "--time", metavar="SEC", type=int, default=60, help="限时秒数（默认 60）")
+    ap.add_argument("--pad", action="store_true", help="小键盘布局")
+    view = ap.add_mutually_exclusive_group()
+    view.add_argument("--zen", dest="zen", action="store_true", default=None, help="禅模式：只显示数字（默认）")
+    view.add_argument("--detail", dest="zen", action="store_false", help="详细模式：显示速度、键盘和指法")
     args = ap.parse_args()
     if not 1 <= args.size <= 20 or not 1 <= args.groups <= 200 or not 5 <= args.time <= 3600:
         ap.error("参数超出范围：size 1-20，groups 1-200，time 5-3600")
